@@ -24,11 +24,12 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 LV_IMG_DECLARE(balloon);
 LV_IMG_DECLARE(mountain);
-LV_IMAGE_DECLARE(ossi1);
+LV_IMG_DECLARE(ossi1);
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
+S
 
-struct peripheral_status_state {
+    struct peripheral_status_state {
     bool connected;
 };
 
