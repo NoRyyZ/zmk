@@ -27,9 +27,8 @@ LV_IMG_DECLARE(mountain);
 LV_IMG_DECLARE(ossi1);
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
-S
 
-    struct peripheral_status_state {
+struct peripheral_status_state {
     bool connected;
 };
 
