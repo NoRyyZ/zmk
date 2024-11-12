@@ -19,6 +19,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <drivers/behavior.h>
 #include <zmk/behavior.h>
 #include <zmk/matrix.h>
+#include <zmk/physical_layouts.h>
 #include <zmk/split/bluetooth/uuid.h>
 #include <zmk/split/bluetooth/service.h>
 
@@ -116,8 +117,8 @@ static zmk_hid_indicators_t hid_indicators = 0;
 
 static void split_svc_update_indicators_callback(struct k_work *work) {
     LOG_DBG("Raising HID indicators changed event: %x", hid_indicators);
-    ZMK_EVENT_RAISE(new_zmk_hid_indicators_changed(
-        (struct zmk_hid_indicators_changed){.indicators = hid_indicators}));
+    raise_zmk_hid_indicators_changed(
+        (struct zmk_hid_indicators_changed){.indicators = hid_indicators});
 }
 
 static K_WORK_DEFINE(split_svc_update_indicators_work, split_svc_update_indicators_callback);
@@ -137,6 +138,42 @@ static ssize_t split_svc_update_indicators(struct bt_conn *conn, const struct bt
 }
 
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
+
+static uint8_t selected_phys_layout = 0;
+
+static void split_svc_select_phys_layout_callback(struct k_work *work) {
+    LOG_DBG("Selecting physical layout after GATT write of %d", selected_phys_layout);
+    zmk_physical_layouts_select(selected_phys_layout);
+}
+
+static K_WORK_DEFINE(split_svc_select_phys_layout_work, split_svc_select_phys_layout_callback);
+
+static ssize_t split_svc_select_phys_layout(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+                                            const void *buf, uint16_t len, uint16_t offset,
+                                            uint8_t flags) {
+    if (offset + len > sizeof(uint8_t) || len == 0) {
+        return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
+    }
+
+    selected_phys_layout = *(uint8_t *)buf;
+
+    k_work_submit(&split_svc_select_phys_layout_work);
+
+    return len;
+}
+
+static ssize_t split_svc_get_selected_phys_layout(struct bt_conn *conn,
+                                                  const struct bt_gatt_attr *attrs, void *buf,
+                                                  uint16_t len, uint16_t offset) {
+    int selected_ret = zmk_physical_layouts_get_selected();
+    if (selected_ret < 0) {
+        return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
+    }
+
+    uint8_t selected = (uint8_t)selected_ret;
+
+    return bt_gatt_attr_read(conn, attrs, buf, len, offset, &selected, sizeof(selected));
+}
 
 BT_GATT_SERVICE_DEFINE(
     split_svc, BT_GATT_PRIMARY_SERVICE(BT_UUID_DECLARE_128(ZMK_SPLIT_BT_SERVICE_UUID)),
@@ -160,7 +197,11 @@ BT_GATT_SERVICE_DEFINE(
                            BT_GATT_CHRC_WRITE_WITHOUT_RESP, BT_GATT_PERM_WRITE_ENCRYPT, NULL,
                            split_svc_update_indicators, NULL),
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
-);
+    BT_GATT_CHARACTERISTIC(BT_UUID_DECLARE_128(ZMK_SPLIT_BT_SELECT_PHYS_LAYOUT_UUID),
+                           BT_GATT_CHRC_WRITE | BT_GATT_CHRC_READ,
+                           BT_GATT_PERM_WRITE_ENCRYPT | BT_GATT_PERM_READ_ENCRYPT,
+                           split_svc_get_selected_phys_layout, split_svc_select_phys_layout,
+                           NULL), );
 
 K_THREAD_STACK_DEFINE(service_q_stack, CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_STACK_SIZE);
 
@@ -265,7 +306,7 @@ int zmk_split_bt_sensor_triggered(uint8_t sensor_index,
 }
 #endif /* ZMK_KEYMAP_HAS_SENSORS */
 
-int service_init(const struct device *_arg) {
+static int service_init(void) {
     static const struct k_work_queue_config queue_config = {
         .name = "Split Peripheral Notification Queue"};
     k_work_queue_start(&service_work_q, service_q_stack, K_THREAD_STACK_SIZEOF(service_q_stack),

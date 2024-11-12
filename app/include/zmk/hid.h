@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <zephyr/sys/util.h>
+
 #include <zephyr/usb/usb_device.h>
 #include <zephyr/usb/class/usb_hid.h>
 
@@ -17,7 +19,28 @@
 #include <dt-bindings/zmk/hid_usage.h>
 #include <dt-bindings/zmk/hid_usage_pages.h>
 
+#if IS_ENABLED(CONFIG_ZMK_HID_KEYBOARD_NKRO_EXTENDED_REPORT)
+#define ZMK_HID_KEYBOARD_NKRO_MAX_USAGE HID_USAGE_KEY_KEYBOARD_LANG8
+#else
 #define ZMK_HID_KEYBOARD_NKRO_MAX_USAGE HID_USAGE_KEY_KEYPAD_EQUAL
+#endif
+
+#if IS_ENABLED(CONFIG_ZMK_HID_CONSUMER_REPORT_USAGES_BASIC)
+#define ZMK_HID_CONSUMER_MAX_USAGE 0xFF
+#elif IS_ENABLED(CONFIG_ZMK_HID_CONSUMER_REPORT_USAGES_FULL)
+#define ZMK_HID_CONSUMER_MAX_USAGE 0xFFF
+#else
+#error "Unknown consumer report usages configuration"
+#endif
+
+#if IS_ENABLED(CONFIG_ZMK_HID_REPORT_TYPE_NKRO)
+#define ZMK_HID_KEYBOARD_MAX_USAGE ZMK_HID_KEYBOARD_NKRO_MAX_USAGE
+#elif IS_ENABLED(CONFIG_ZMK_HID_REPORT_TYPE_HKRO)
+#define ZMK_HID_KEYBOARD_MAX_USAGE 0xFF
+#else
+#error "Unknown keyboard report usages configuration"
+#endif
+
 #define ZMK_HID_MOUSE_NUM_BUTTONS 0x05
 
 // See https://www.usb.org/sites/default/files/hid1_11.pdf section 6.2.2.4 Main Items
@@ -195,7 +218,7 @@ struct zmk_hid_keyboard_report_body {
     zmk_mod_flags_t modifiers;
     uint8_t _reserved;
 #if IS_ENABLED(CONFIG_ZMK_HID_REPORT_TYPE_NKRO)
-    uint8_t keys[(ZMK_HID_KEYBOARD_NKRO_MAX_USAGE + 1) / 8];
+    uint8_t keys[DIV_ROUND_UP(ZMK_HID_KEYBOARD_NKRO_MAX_USAGE + 1, 8)];
 #elif IS_ENABLED(CONFIG_ZMK_HID_REPORT_TYPE_HKRO)
     uint8_t keys[CONFIG_ZMK_HID_KEYBOARD_REPORT_SIZE];
 #endif
@@ -247,7 +270,7 @@ struct zmk_hid_mouse_report {
 
 #endif // IS_ENABLED(CONFIG_ZMK_MOUSE)
 
-zmk_mod_flags_t zmk_hid_get_explicit_mods();
+zmk_mod_flags_t zmk_hid_get_explicit_mods(void);
 int zmk_hid_register_mod(zmk_mod_t modifier);
 int zmk_hid_unregister_mod(zmk_mod_t modifier);
 bool zmk_hid_mod_is_pressed(zmk_mod_t modifier);
@@ -255,18 +278,18 @@ bool zmk_hid_mod_is_pressed(zmk_mod_t modifier);
 int zmk_hid_register_mods(zmk_mod_flags_t explicit_modifiers);
 int zmk_hid_unregister_mods(zmk_mod_flags_t explicit_modifiers);
 int zmk_hid_implicit_modifiers_press(zmk_mod_flags_t implicit_modifiers);
-int zmk_hid_implicit_modifiers_release();
+int zmk_hid_implicit_modifiers_release(void);
 int zmk_hid_masked_modifiers_set(zmk_mod_flags_t masked_modifiers);
-int zmk_hid_masked_modifiers_clear();
+int zmk_hid_masked_modifiers_clear(void);
 
 int zmk_hid_keyboard_press(zmk_key_t key);
 int zmk_hid_keyboard_release(zmk_key_t key);
-void zmk_hid_keyboard_clear();
+void zmk_hid_keyboard_clear(void);
 bool zmk_hid_keyboard_is_pressed(zmk_key_t key);
 
 int zmk_hid_consumer_press(zmk_key_t key);
 int zmk_hid_consumer_release(zmk_key_t key);
-void zmk_hid_consumer_clear();
+void zmk_hid_consumer_clear(void);
 bool zmk_hid_consumer_is_pressed(zmk_key_t key);
 
 int zmk_hid_press(uint32_t usage);
@@ -278,11 +301,11 @@ int zmk_hid_mouse_button_press(zmk_mouse_button_t button);
 int zmk_hid_mouse_button_release(zmk_mouse_button_t button);
 int zmk_hid_mouse_buttons_press(zmk_mouse_button_flags_t buttons);
 int zmk_hid_mouse_buttons_release(zmk_mouse_button_flags_t buttons);
-void zmk_hid_mouse_clear();
+void zmk_hid_mouse_clear(void);
 #endif // IS_ENABLED(CONFIG_ZMK_MOUSE)
 
-struct zmk_hid_keyboard_report *zmk_hid_get_keyboard_report();
-struct zmk_hid_consumer_report *zmk_hid_get_consumer_report();
+struct zmk_hid_keyboard_report *zmk_hid_get_keyboard_report(void);
+struct zmk_hid_consumer_report *zmk_hid_get_consumer_report(void);
 
 #if IS_ENABLED(CONFIG_ZMK_USB_BOOT)
 zmk_hid_boot_report_t *zmk_hid_get_boot_report();
